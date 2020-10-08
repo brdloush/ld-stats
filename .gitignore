@@ -1,6 +1,7 @@
 /target
 /classes
 /checkouts
+/local
 profiles.clj
 pom.xml
 pom.xml.asc
@@ -10,4 +11,4 @@ pom.xml.asc
 /.nrepl-port
 .hgignore
 .hg/
-.calva/
+.calva
