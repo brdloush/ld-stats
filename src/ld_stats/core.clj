@@ -29,7 +29,7 @@
   (let [{:keys [url method]} opts]
    (if-not (= status 200)
      (throw (ex-info
-             (str "Response has non-200 status! (" method ", " url")")
+             (str "Response has non-200 status: " status " ! (" method ", " url")")
              {:status status
               :body body
               :response res}))
@@ -45,14 +45,11 @@
       :body
       (json/parse-string true)))
 
-(defn api-call-get [url client-opts]
-  (client/get url client-opts parse-ok-json-response))
-
 (defn api-get-feature-flags [ld-api-key]
-  (api-call-get "https://app.launchdarkly.com/api/v2/flags/default" (ld-client-opts ld-api-key)))
+  (client/get "https://app.launchdarkly.com/api/v2/flags/default" (ld-client-opts ld-api-key)))
 
 (defn api-get-all-stats [ld-api-key]
-  (api-call-get "https://app.launchdarkly.com/api/v2/code-refs/statistics/default" (ld-client-opts ld-api-key)))
+  (client/get "https://app.launchdarkly.com/api/v2/code-refs/statistics/default" (ld-client-opts ld-api-key)))
 
 (defn build-usage-stats-by-ff-keys [all-stats-response]
   (->> all-stats-response
@@ -89,10 +86,10 @@
 (defn export-to-csv [ld-api-key environment format filename modified-before-months without-usages-only?]
   (println-err "Fetching FFs. [modified-before-months=" modified-before-months ", without-usages-only?=" without-usages-only? "]")
   (let [millis-before (System/currentTimeMillis)
-        feature-flags-response (api-get-feature-flags ld-api-key)
-        all-stats-response (api-get-all-stats ld-api-key)
-        usage-stats-by-ff-keys (build-usage-stats-by-ff-keys @all-stats-response)
-        mapped-ffs (->> @feature-flags-response
+        [feature-flags-response all-stats-response] (->> [(api-get-feature-flags ld-api-key) (api-get-all-stats ld-api-key)]
+                                                         (map #(parse-ok-json-response (deref %))))
+        usage-stats-by-ff-keys (build-usage-stats-by-ff-keys all-stats-response)
+        mapped-ffs (->> feature-flags-response
                         :items
                         (filter #(false? (get-in % [:environments environment :archived])))
                         (sort-by #(get-in % [:environments environment :lastModified]) <)
