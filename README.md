@@ -15,10 +15,11 @@ The script currently supports following flags:
   -e, --environment ENVIRONMENT              LaunchDarkly environment, such as "production"
   -m, --modified-before-months MONTHS  1     Only include FFs which has not been modified in previous MONTHS months.
   -w, --without-usages-only                  Only include FFs with no code usages.
+  -t, --with-tag TAG                         Only with provived TAG will be returned.
   -f, --format FORMAT                  :csv  Output format. Either "csv" or "json".
   -o, --output-file FILENAME                 Output to file with provided FILENAME. If not specified, output is sent to STDOUT.
   -h, --help                                 Shows this usage information.
-  -d, --debug                                Debug logging. Print more detailed errors, including API responses.          
+  -d, --debug                                Debug logging. Print more detailed errors, including API responses.
 ```
 
 Basic use:

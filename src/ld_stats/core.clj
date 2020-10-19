@@ -60,12 +60,13 @@
                       frequencies)]))
        (into {})))
 
-(defn extract-ff-data [{:keys [key name environments]} ld-env]
+(defn extract-ff-data [{:keys [key name environments tags]} ld-env]
   {:key key
    :name name
    :last-modified (-> environments
                               (get-in [ld-env :lastModified])
-                              epoch->timestamp_str)})
+                              epoch->timestamp_str)
+   :tags tags})
 
 (defmulti ffs->export-str (fn [format & _] format))
 
@@ -73,17 +74,17 @@
   [_ ffs]
   (with-open [sw (java.io.StringWriter.)]
     (doall (for [ff ffs]
-             (let [{:keys [key name last-modified usages]} ff]
-               (csv/write-csv sw [[key name last-modified usages]]))))
-    (s/join "\n" ["Key,Name,Last modified,Usages"
+             (let [{:keys [key name last-modified usages tags]} ff]
+               (csv/write-csv sw [[key name last-modified usages tags]]))))
+    (s/join "\n" ["Key,Name,Last modified,Usages,Tags"
                   (.toString sw)])))
 
 (defmethod ffs->export-str :json
   [_ ffs]
-  (-> (map #(select-keys % [:key :name :last-modified :usages]) ffs)
+  (-> (map #(select-keys % [:key :name :last-modified :usages :tags]) ffs)
       (json/encode {:pretty true})))
 
-(defn export-to-csv [ld-api-key environment format filename modified-before-months without-usages-only?]
+(defn export-to-csv [& {:keys [ld-api-key environment format filename modified-before-months without-usages-only? with-tag]}]
   (println-err "Fetching FFs. [modified-before-months=" modified-before-months ", without-usages-only?=" without-usages-only? "]")
   (let [millis-before (System/currentTimeMillis)
         [feature-flags-response all-stats-response] (->> [(api-get-feature-flags ld-api-key) (api-get-all-stats ld-api-key)]
@@ -102,6 +103,9 @@
         filtered-ffs (->> mapped-ffs
                           (filter #(if without-usages-only?
                                      (empty? (:usages %))
+                                     true))
+                          (filter #(if with-tag
+                                     (contains? (set (:tags %)) with-tag)
                                      true))
                           (filter #(datetime-is-before? (parse-datetime (:last-modified %))
                                                         max-modif-time)))
@@ -122,6 +126,7 @@
     :validate [#(>= % 0) "Must be number greater to or equal to 0"]]
    ["-w" "--without-usages-only" "Only include FFs with no code usages."
     :default false]
+   ["-t" "--with-tag TAG" "Only with provived TAG will be returned."]   
    ["-f" "--format FORMAT" "Output format. Either \"csv\" or \"json\"."
     :default :csv
     :parse-fn keyword
@@ -139,7 +144,8 @@
 
 (defn -main [& args]
   (let [{:keys [options summary errors]} (parse-opts args cli-options)
-        {:keys [without-usages-only modified-before-months help output-file ld-api-key debug format environment]} options
+        {:keys [without-usages-only modified-before-months help output-file ld-api-key 
+                debug format environment with-tag]} options
         effective-ld-api-key (or ld-api-key (System/getenv "LD_API_KEY"))]  
     (try
       (cond
@@ -157,7 +163,14 @@
         (throw (ex-info "Environment not provided" {}))
 
         :else
-        (export-to-csv effective-ld-api-key (keyword environment) format output-file modified-before-months without-usages-only))
+        (export-to-csv 
+         :ld-api-key effective-ld-api-key
+         :environment (keyword environment)
+         :format format
+         :filename output-file
+         :modified-before-months modified-before-months
+         :without-usages-only? without-usages-only
+         :with-tag with-tag))
       (catch Exception e
         (println-exception-info e debug)
         (System/exit 1)))))
